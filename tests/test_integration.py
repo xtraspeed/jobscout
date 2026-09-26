@@ -396,11 +396,59 @@ async def test_mark_stale_on_postgres(pg_repo: JobRepository, pg_session: AsyncS
     await pg_repo.upsert_many([make_item("1"), make_item("2"), make_item("3")])
     await pg_session.commit()
 
-    marked = await pg_repo.mark_stale("board", run_id=0, keep_ids={"1", "2"})
+    marked = await pg_repo.mark_stale("board", keep_ids={"1", "2"})
     await pg_session.commit()
 
     assert marked == 1
     assert (await pg_repo.count(ItemFilters())) == 2
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_mark_stale_without_a_run_does_not_break_the_foreign_key(
+    pg_repo: JobRepository, pg_session: AsyncSession
+) -> None:
+    """Regression: `run_id` must be left alone when there is no run.
+
+    Writing a placeholder run id would violate the foreign key to
+    ``crawl_runs``. SQLite does not enforce foreign keys, so only a real server
+    catches this.
+    """
+    await pg_repo.upsert_many([make_item("1"), make_item("2")])
+    await pg_session.commit()
+
+    await pg_repo.mark_stale("board", keep_ids={"1"})
+    await pg_session.commit()
+
+    stale = (
+        await pg_session.execute(select(JobItemRow).where(JobItemRow.external_id == "2"))
+    ).scalar_one()
+    assert stale.is_active is False
+    assert stale.run_id is None, "no run id may be invented"
+
+
+@requires_postgres
+@pytest.mark.asyncio
+async def test_mark_stale_records_the_run_that_deactivated_a_listing(
+    pg_sessionmaker: Any, pg_session: AsyncSession
+) -> None:
+    async with pg_sessionmaker() as session:
+        run = await RunRepository(session).start("board")
+        await session.commit()
+        run_id = run.id
+
+    async with pg_sessionmaker() as session:
+        repo = JobRepository(session, dialect="postgresql")
+        await repo.upsert_many([make_item("1"), make_item("2")])
+        await session.commit()
+        await repo.mark_stale("board", keep_ids={"1"}, run_id=run_id)
+        await session.commit()
+
+    stale = (
+        await pg_session.execute(select(JobItemRow).where(JobItemRow.external_id == "2"))
+    ).scalar_one()
+    assert stale.is_active is False
+    assert stale.run_id == run_id, "provenance of the deactivation is kept"
 
 
 @requires_postgres

@@ -213,7 +213,7 @@ class Crawler:
 
         if seen_ids:
             self.result.marked_inactive = await self.jobs.mark_stale(
-                self.adapter.name, self.run_id or 0, keep_ids=seen_ids
+                self.adapter.name, keep_ids=seen_ids, run_id=self.run_id
             )
             if self.result.marked_inactive:
                 _log.info(

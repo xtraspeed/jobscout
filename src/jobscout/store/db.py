@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -35,12 +37,14 @@ def create_engine(settings: Settings, *, url: str | None = None) -> AsyncEngine:
     """
     target = url or settings.database_url
     if target.startswith("sqlite"):
-        return create_async_engine(
+        engine = create_async_engine(
             target,
             echo=settings.database_echo,
             poolclass=NullPool,
             future=True,
         )
+        _enable_sqlite_foreign_keys(engine)
+        return engine
     return create_async_engine(
         target,
         echo=settings.database_echo,
@@ -49,6 +53,24 @@ def create_engine(settings: Settings, *, url: str | None = None) -> AsyncEngine:
         pool_pre_ping=True,
         future=True,
     )
+
+
+def _enable_sqlite_foreign_keys(engine: AsyncEngine) -> None:
+    """Turn on SQLite foreign-key enforcement.
+
+    SQLite ignores foreign keys unless asked, which lets a schema mistake --
+    writing a ``run_id`` that does not exist, say -- pass the entire local test
+    suite and then fail on the first real crawl against PostgreSQL. Enabling the
+    pragma makes the local database behave like the production one.
+    """
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_pragma(dbapi_connection: Any, _record: Any) -> None:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+        finally:
+            cursor.close()
 
 
 def create_sessionmaker(engine: AsyncEngine) -> SessionMaker:

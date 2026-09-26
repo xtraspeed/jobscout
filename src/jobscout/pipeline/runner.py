@@ -182,7 +182,9 @@ async def reparse_snapshots(
                     await _write(jobs, report, run.id)
             await _write(jobs, report, run.id)
 
-            report.marked_inactive = await jobs.mark_stale(adapter.name, run.id, keep_ids=seen)
+            report.marked_inactive = await jobs.mark_stale(
+                adapter.name, keep_ids=seen, run_id=run.id
+            )
             report.duration_seconds = round(time.perf_counter() - started, 3)
 
             await runs.finish(

@@ -161,7 +161,7 @@ async def test_mark_stale_flags_listings_missing_from_a_run(
     await repo.upsert_many([make_item("1"), make_item("2"), make_item("3")])
     await session.commit()
 
-    marked = await repo.mark_stale(SOURCE, run_id=0, keep_ids={"1", "2"})
+    marked = await repo.mark_stale(SOURCE, keep_ids={"1", "2"})
     await session.commit()
 
     assert marked == 1
@@ -243,7 +243,7 @@ async def test_inactive_items_are_hidden_by_default(
 ) -> None:
     await repo.upsert_many([make_item("1")])
     await session.commit()
-    await repo.mark_stale(SOURCE, run_id=0, keep_ids=set())
+    await repo.mark_stale(SOURCE, keep_ids=set())
     await session.commit()
 
     assert (await repo.list_items(ItemFilters(limit=10))).items == []

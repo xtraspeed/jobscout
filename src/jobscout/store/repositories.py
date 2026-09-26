@@ -239,16 +239,27 @@ class JobRepository:
             "is_active": True,
         }
 
-    async def mark_stale(self, source: str, run_id: int, *, keep_ids: set[str]) -> int:
+    async def mark_stale(
+        self, source: str, *, keep_ids: set[str], run_id: int | None = None
+    ) -> int:
         """Flag listings from a previous run of ``source`` that this run missed.
 
         Gives the dataset a real "no longer advertised" signal instead of
-        assuming every previously-seen listing is still live.
+        assuming every previously-seen listing is still live. Rows are flagged,
+        never deleted.
+
+        ``run_id`` is optional and only set when supplied: it records which run
+        last deactivated the listing. Writing a placeholder like ``0`` instead
+        would violate the foreign key to ``crawl_runs`` on PostgreSQL, which
+        SQLite does not enforce -- a divergence worth designing around.
         """
         stmt = update(JobItemRow).where(JobItemRow.source == source, JobItemRow.is_active.is_(True))
         if keep_ids:
             stmt = stmt.where(~JobItemRow.external_id.in_(keep_ids))
-        result = await self.session.execute(stmt.values(is_active=False, run_id=run_id))
+        values: dict[str, Any] = {"is_active": False}
+        if run_id is not None:
+            values["run_id"] = run_id
+        result = await self.session.execute(stmt.values(**values))
         return int(getattr(result, "rowcount", 0) or 0)
 
     # -- reads --------------------------------------------------------------

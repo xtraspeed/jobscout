@@ -348,7 +348,7 @@ async def test_missing_run_is_404(seeded: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_inactive_items_hidden_by_default(seeded: AsyncClient, session: AsyncSession) -> None:
-    await JobRepository(session, dialect="sqlite").mark_stale(SOURCE, run_id=0, keep_ids=set())
+    await JobRepository(session, dialect="sqlite").mark_stale(SOURCE, keep_ids=set())
     await session.commit()
 
     assert (await seeded.get("/items")).json()["count"] == 0

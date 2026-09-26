@@ -38,6 +38,10 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY src ./src
 COPY scripts ./scripts
+# The smoke test runs entirely offline against the recorded fixture bundle, so
+# the fixtures ship in the image too. This is what lets CI verify the built
+# image without hitting the network.
+COPY tests ./tests
 
 RUN chown -R jobscout:jobscout /app
 USER jobscout
