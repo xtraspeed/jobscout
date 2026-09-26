@@ -10,7 +10,7 @@ MYPY := $(BIN)/mypy
 PYTEST := $(BIN)/pytest
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install lint fmt typecheck test test-all cov api dashboard crawl-demo migrate up down clean
+.PHONY: help venv install lint fmt typecheck test integration test-all cov api dashboard crawl-demo migrate up down clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -36,6 +36,9 @@ typecheck: ## Static types (mypy strict)
 
 test: ## Unit tests only (offline, temp SQLite)
 	$(PYTEST) -m "not integration and not network"
+
+integration: ## Integration tests (needs JOBSCOUT_TEST_DATABASE_URL)
+	$(PYTEST) -m integration
 
 test-all: ## Everything, including integration tests
 	$(PYTEST)

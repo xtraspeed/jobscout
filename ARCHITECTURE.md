@@ -233,6 +233,26 @@ request. `NullPool` sidesteps that and costs nothing for SQLite.
 which case the value is unambiguous `D/M/Y`. Documented, tested, and chosen
 because scraped English-language text follows US convention more often than not.
 
+### Verifying the branch that never runs
+
+Running everything on SQLite means the PostgreSQL statements are never executed.
+Two mechanisms close that gap without a server in the loop:
+
+1. **The dialect-specific SQL is built by pure, session-free functions**
+   (`build_upsert_statement`, `build_search_condition`, `build_day_bucket`).
+   The repository calls them, and `tests/test_postgres_sql.py` calls the same
+   functions and compiles the result for the PostgreSQL dialect. A misspelled
+   function, a wrong `excluded` reference, or an accidentally dropped
+   `WHERE job_items.content_hash != excluded.content_hash` fails there rather
+   than in production.
+2. **`tests/test_integration.py`** runs the real statements against a real
+   server, including the concurrency case where eight writers race on one
+   natural key. It is marked `integration`, skips without a configured database,
+   and runs in CI.
+
+Extracting those builders was a design change, not a test scaffold: it is what
+makes the two dialects symmetrical and reviewable side by side.
+
 ---
 
 ## 8. Schema management
@@ -301,7 +321,9 @@ was extracted so a test can construct the real navigation and assert it builds.
 | Integration | Fixture transport + real fetcher | the whole pipeline, offline |
 | Contract | Recorded HTML fixtures | selector regressions, DOM drift |
 | Data | Temp SQLite via real repositories | upsert semantics, pagination, staleness |
+| Dialect | Compile for PostgreSQL, assert the SQL | the `ON CONFLICT` guard, tsvector config, `date_trunc` |
 | Schema | Migration vs. metadata comparison | drift between models and migrations |
+| Live server | `pytest -m integration` on PostgreSQL | JSONB, real FTS, concurrency, rollback |
 | UI | `AppTest` | every dashboard page and the navigation shell |
 
 The fixture adapter is the keystone. Because it serves recorded pages through an

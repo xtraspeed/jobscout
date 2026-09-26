@@ -38,6 +38,75 @@ _SORT_COLUMNS: dict[SortField, Any] = {
     "company": JobItemRow.company,
 }
 
+#: Columns an upsert may overwrite. Deliberately excludes ``first_seen_at``:
+#: it records when a listing was first observed and must never move.
+UPDATABLE_COLUMNS: tuple[str, ...] = (
+    "run_id",
+    "url",
+    "title",
+    "company",
+    "location",
+    "remote",
+    "employment_type",
+    "salary_min",
+    "salary_max",
+    "salary_currency",
+    "description",
+    "tags",
+    "raw",
+    "search_text",
+    "posted_at",
+    "content_hash",
+    "last_seen_at",
+    "is_active",
+)
+
+
+# ------------------------------------------------------- pure SQL builders ---
+#
+# Session-free and module-level so the dialect-specific statements can be
+# compiled and asserted without a live database. Without this, the PostgreSQL
+# branch of each statement is only ever exercised in production.
+
+
+def build_upsert_statement(dialect: str, rows: Sequence[dict[str, Any]]) -> Any:
+    """Dialect-appropriate ``INSERT ... ON CONFLICT DO UPDATE`` for listings.
+
+    The ``WHERE`` clause on the conflict action is what makes a re-crawl cheap: a
+    row whose content hash is unchanged becomes a no-op instead of a write.
+    """
+    if not rows:
+        raise ValueError("build_upsert_statement requires at least one row")
+    builder = pg_insert if dialect == "postgresql" else sqlite_insert
+    stmt = builder(JobItemRow).values(list(rows))
+    return stmt.on_conflict_do_update(
+        index_elements=["source", "external_id"],
+        set_={column: getattr(stmt.excluded, column) for column in UPDATABLE_COLUMNS},
+        where=(JobItemRow.content_hash != stmt.excluded.content_hash),
+    )
+
+
+def build_search_condition(dialect: str, column: Any, query: str) -> Any:
+    """Full-text predicate over ``column``.
+
+    PostgreSQL uses a ``tsvector`` with the ``simple`` configuration --
+    deliberately not English-stemmed, because job titles are full of proper nouns
+    and identifiers (``C++``, ``Node.js``, ``M4``) that stemming mangles. SQLite
+    falls back to a substring match so the test suite needs no server.
+    """
+    if dialect == "postgresql":
+        vector = func.to_tsvector("simple", func.coalesce(column, ""))
+        return vector.op("@@")(func.plainto_tsquery("simple", query))
+    pattern = f"%{query.strip()}%"
+    return or_(column.ilike(pattern), JobItemRow.title.ilike(pattern))
+
+
+def build_day_bucket(dialect: str, column: Any) -> Any:
+    """Truncate a timestamp column to a day, for the trend series."""
+    if dialect == "postgresql":
+        return func.date_trunc("day", column)
+    return func.strftime("%Y-%m-%d", column)
+
 
 @dataclass(slots=True)
 class WriteStats:
@@ -142,37 +211,7 @@ class JobRepository:
         return found
 
     async def _bulk_upsert(self, rows: Sequence[dict[str, Any]]) -> None:
-        # Pass the mapped class, not `__table__`: the dialect insert helpers
-        # accept either, but only the former is typed as an insertable target.
-        builder = pg_insert if self.dialect == "postgresql" else sqlite_insert
-        stmt = builder(JobItemRow).values(list(rows))
-
-        updatable = (
-            "run_id",
-            "url",
-            "title",
-            "company",
-            "location",
-            "remote",
-            "employment_type",
-            "salary_min",
-            "salary_max",
-            "salary_currency",
-            "description",
-            "tags",
-            "raw",
-            "search_text",
-            "posted_at",
-            "content_hash",
-            "last_seen_at",
-            "is_active",
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["source", "external_id"],
-            set_={column: getattr(stmt.excluded, column) for column in updatable},
-            where=(JobItemRow.content_hash != stmt.excluded.content_hash),
-        )
-        await self.session.execute(stmt)
+        await self.session.execute(build_upsert_statement(self.dialect, rows))
 
     @staticmethod
     def _to_row(item: JobItem, *, run_id: int | None, now: datetime) -> dict[str, Any]:
@@ -332,10 +371,7 @@ class JobRepository:
     ) -> list[dict[str, Any]]:
         """Listings per day, zero-filled so charts have no gaps."""
         target = getattr(JobItemRow, column)
-        if self.dialect == "postgresql":
-            bucket = func.date_trunc("day", target)
-        else:
-            bucket = func.strftime("%Y-%m-%d", target)
+        bucket = build_day_bucket(self.dialect, target)
         since = utcnow() - timedelta(days=days - 1)
         stmt = (
             select(bucket.label("day"), func.count(JobItemRow.id).label("n"))
@@ -388,21 +424,8 @@ class JobRepository:
         return stmt
 
     def _search_condition(self, query: str) -> Any:
-        """Full-text on PostgreSQL, substring match on SQLite.
-
-        ``'simple'`` is used deliberately: job titles are full of proper nouns
-        and identifiers ("C++", "Node.js", "M4") that a stemmed English
-        configuration would mangle.
-        """
-        if self.dialect == "postgresql":
-            vector = func.to_tsvector("simple", func.coalesce(JobItemRow.search_text, ""))
-            return vector.op("@@")(func.plainto_tsquery("simple", query))
-        pattern = f"%{query.strip()}%"
-        return or_(
-            JobItemRow.search_text.ilike(pattern),
-            JobItemRow.company.ilike(pattern),
-            JobItemRow.title.ilike(pattern),
-        )
+        """Full-text search over the denormalised ``search_text`` column."""
+        return build_search_condition(self.dialect, JobItemRow.search_text, query)
 
     @staticmethod
     def _keyset_condition(filters: ItemFilters, decoded: tuple[str | None, int]) -> Any:

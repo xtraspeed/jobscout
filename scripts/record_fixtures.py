@@ -7,9 +7,9 @@ one from a live board.
     python scripts/record_fixtures.py --config my_board.yml --out tests/fixtures/my_board
 
 Before pointing this at a real site, read its robots.txt and terms of service,
-and pick a ``per_domain_rate`` the site can absorb. Recorded pages stay local and
-are never committed by accident (they are, but only from sites you are allowed
-to crawl -- ``.gitignore`` this directory if that is a concern for your repo).
+and pick a ``--rate`` the site can absorb. Recorded bodies are third-party
+content: only commit bundles for sites you are permitted to crawl, and consider
+adding the output directory to ``.gitignore`` otherwise.
 """
 
 from __future__ import annotations

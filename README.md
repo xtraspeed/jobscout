@@ -233,12 +233,13 @@ This is the part most scraping projects skip, and it is the part that matters.
 ## Testing
 
 ```bash
-make test        # unit + integration, fully offline
-make cov         # with coverage
+make test          # 265 unit tests, fully offline
+make integration   # 17 tests, needs JOBSCOUT_TEST_DATABASE_URL
+make cov           # with coverage
 make lint typecheck
 ```
 
-**248 tests, no network access required.** Highlights:
+**265 unit tests, no network access required.** Highlights:
 
 - Politeness primitives tested on an **injected clock**, so rate limiting is
   verified without real waiting
@@ -249,9 +250,33 @@ make lint typecheck
 - **Idempotency**: a second crawl must report every item as unchanged and add no rows
 - **Schema drift detection**: `tests/test_migrations.py` runs the real Alembic
   migrations and compares the result against the ORM metadata
+- **Dialect verification**: the PostgreSQL-only SQL is *compiled* and asserted
+  (`tests/test_postgres_sql.py`), so `ON CONFLICT`, the `tsvector` search and
+  `date_trunc` are checked even though the suite runs on SQLite
 - **Offline replay**: the fixture adapter drives the real `HttpFetcher` through a
   fixture transport, so politeness, retries, archiving and metrics all execute
 - **Streamlit UI tests** via `AppTest`, including the navigation shell
+
+### Integration tests
+
+The unit suite runs on SQLite, which means the PostgreSQL-only behaviour is never
+executed. `tests/test_integration.py` covers exactly that gap and needs a
+disposable database:
+
+```bash
+export JOBSCOUT_TEST_DATABASE_URL=postgresql+asyncpg://jobscout:jobscout@localhost:5432/jobscout_test
+make integration
+```
+
+It drops and recreates the `public` schema, so **never point it at a database you
+care about**. It asserts `ON CONFLICT` semantics, `JSONB` round-trips, real
+`tsvector` search (including that the `simple` dictionary does not stem job
+titles), `date_trunc` bucketing, timezone-aware timestamps, archive round-trips,
+transaction rollback, and that **eight concurrent writers to the same natural key
+produce exactly one row**.
+
+Those tests skip cleanly when no database is configured, so `make test` stays
+hermetic. In CI they run against the `postgres:16-alpine` service.
 
 ---
 
@@ -271,7 +296,7 @@ src/jobscout/
   observability/       structlog, Prometheus metrics
   cli.py               command-line interface
 alembic/               migrations (migration-only; no create_all at runtime)
-tests/                 248 tests + recorded fixture bundles
+tests/                 265 unit + 17 integration tests, recorded fixture bundles
 scripts/               smoke_test.py, record_fixtures.py
 ops/prometheus/        scrape config
 ```
@@ -324,6 +349,12 @@ Stated plainly, because a project that admits its edges is easier to trust:
 - **The frontier is in-memory.** Fine for one run; a resumable multi-day crawl
   would need it persisted. Cross-run idempotency already comes from the
   `(source, external_id)` unique key, so persistence is not needed for correctness.
+- **The integration tests have not been executed against a live PostgreSQL in
+  this repo's current environment** (no Docker or server available). They are
+  written to run in CI against the `postgres:16-alpine` service; until that has
+  run green, treat the PostgreSQL behaviour as reviewed-but-unproven. The
+  dialect-specific SQL is separately *compiled and asserted* in
+  `tests/test_postgres_sql.py`, which does run everywhere.
 - **No JS-rendered infinite scroll.** Pagination strategies are next-link or a
   page template.
 - **The archive is a debugging tool, not an audit log.** `prune_snapshots` keeps
