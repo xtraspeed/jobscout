@@ -1,0 +1,45 @@
+# Selector config used by the recorded fixture bundle in tests/fixtures/demo_board.
+# Kept separate from the shipped demo_board.yml so the tests pin their own
+# expectations: a change to the shipped config must not silently alter tests.
+
+name: demo_board
+description: Recorded fixture board for offline tests and the offline demo crawl.
+
+start_urls:
+  - https://demo-board.example/jobs?page=1
+
+base_url: https://demo-board.example
+
+list:
+  item_selector: "div.job-card"
+  url: "a.job-link::attr(href)"
+  fields:
+    title: "h2.job-title::text"
+    company: "span.company::text"
+    location: "span.location::text"
+    employment_type: "span.employment-type::text"
+    salary: "span.salary::text"
+    summary: "p.summary::text"
+    tags: "ul.tags li::text"
+    posted_at: "time.posted::attr(datetime)"
+
+detail:
+  remove: "script, style, noscript, a.apply"
+  fields:
+    # title/company are repeated here on purpose: a detail page that can be
+    # parsed on its own is what makes `jobscout reparse` work without the index.
+    title: "h1::text"
+    company: "span.company::text"
+    description: "div.description::html"
+    location: "div.details span.location::text"
+    salary: "div.details span.salary::text"
+    employment_type: "div.details span.employment-type::text"
+    posted_at: "time.posted::attr(datetime)"
+    tags: "ul.skills li::text"
+
+pagination:
+  max_pages: 2
+  next_selector: "a.next"
+
+infer_remote: true
+infer_employment_type: true

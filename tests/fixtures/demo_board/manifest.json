@@ -1,0 +1,42 @@
+{
+  "config": "board.yml",
+  "pages": [
+    {
+      "url": "https://demo-board.example/jobs?page=1",
+      "file": "list-1.html",
+      "kind": "list",
+      "base_url": "https://demo-board.example"
+    },
+    {
+      "url": "https://demo-board.example/jobs?page=2",
+      "file": "list-2.html",
+      "kind": "list",
+      "base_url": "https://demo-board.example"
+    },
+    {
+      "url": "https://demo-board.example/jobs/1001",
+      "file": "detail-1001.html",
+      "kind": "detail",
+      "base_url": "https://demo-board.example"
+    },
+    {
+      "url": "https://demo-board.example/jobs/1002",
+      "file": "detail-1002.html",
+      "kind": "detail",
+      "base_url": "https://demo-board.example"
+    },
+    {
+      "url": "https://demo-board.example/jobs/1004",
+      "file": "detail-1004.html",
+      "kind": "detail",
+      "base_url": "https://demo-board.example"
+    },
+    {
+      "url": "https://demo-board.example/jobs/1005",
+      "file": "detail-1005.html",
+      "kind": "detail",
+      "base_url": "https://demo-board.example"
+    }
+  ],
+  "notes": "Recorded sample pages. URLs use .example (RFC 2606 reserved) so they can never resolve on the public internet. Job 1003 has a list entry but no recorded detail page, which exercises the 'index row only' fallback path."
+}

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Open roles &mdash; Demo Board</title>
+</head>
+<body>
+  <header><nav><a href="/">Home</a> <a href="/about">About</a></nav></header>
+
+  <main>
+    <h1>Open roles</h1>
+
+    <div class="job-card">
+      <h2 class="job-title"><a class="job-link" href="/jobs/1001">Senior Backend Engineer</a></h2>
+      <span class="company">Northwind Analytics</span>
+      <span class="location">Berlin, Germany</span>
+      <span class="employment-type">Full-time</span>
+      <span class="salary">&euro;85,000 &ndash; &euro;105,000</span>
+      <time class="posted" datetime="2026-02-11">11 Feb 2026</time>
+      <p class="summary">Own the ingestion pipeline end to end. Python, Postgres, Kubernetes.</p>
+      <ul class="tags"><li>Python</li><li>PostgreSQL</li><li>Kubernetes</li></ul>
+    </div>
+
+    <div class="job-card">
+      <h2 class="job-title"><a class="job-link" href="/jobs/1002">Staff Frontend Engineer</a></h2>
+      <span class="company">Contoso Labs</span>
+      <span class="location">Remote (EU)</span>
+      <span class="employment-type">Full-time</span>
+      <span class="salary">$180k &ndash; $220k USD</span>
+      <time class="posted" datetime="2026-02-18">18 Feb 2026</time>
+      <p class="summary">Design systems and rendering performance. TypeScript, React.</p>
+      <ul class="tags"><li>TypeScript</li><li>React</li><li>WebGL</li></ul>
+    </div>
+
+    <div class="job-card">
+      <h2 class="job-title"><a class="job-link" href="/jobs/1003">Data Engineering Intern</a></h2>
+      <span class="company">Fabrikam</span>
+      <span class="location">Dublin, Ireland</span>
+      <span class="salary">&euro;2,800 / month</span>
+      <time class="posted" datetime="2026-02-20">20 Feb 2026</time>
+      <p class="summary">Six month internship on the analytics team.</p>
+      <ul class="tags"><li>SQL</li><li>dbt</li></ul>
+    </div>
+
+    <!-- An ad slot: no title element, must be ignored by the parser. -->
+    <div class="job-card promo">
+      <a href="https://ads.example/sponsor">Sponsor us</a>
+    </div>
+
+    <nav class="pagination">
+      <a class="next" href="/jobs?page=2" rel="next">Next &rsaquo;</a>
+    </nav>
+  </main>
+
+  <footer><p>&copy; 2026 Demo Board</p></footer>
+</body>
+</html>
