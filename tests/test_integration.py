@@ -323,21 +323,28 @@ async def test_tsvector_search_does_not_stem_job_titles(
 
 @requires_postgres
 @pytest.mark.asyncio
-async def test_search_handles_null_search_text(
-    pg_repo: JobRepository, pg_session: AsyncSession
-) -> None:
-    """A row with NULL search text must not break the tsvector expression."""
-    await pg_session.execute(
-        text(
-            "INSERT INTO job_items (source, external_id, url, title, company, description, "
-            "tags, raw, search_text, content_hash, first_seen_at, last_seen_at) "
-            "VALUES ('s', 'null', 'u', 'T', 'C', '', '[]', '{}', NULL, 'h', now(), now())"
-        )
-    )
+async def test_search_text_is_never_null(pg_repo: JobRepository, pg_session: AsyncSession) -> None:
+    """`search_text` is NOT NULL, so the tsvector expression never sees NULL.
+
+    The repository always derives it from the item, and the column's NOT NULL
+    constraint is what guarantees that -- an assertion worth pinning down,
+    because the expression index is built on this column.
+    """
+    await pg_repo.upsert_many([make_item("1")])
     await pg_session.commit()
 
-    page = await pg_repo.list_items(ItemFilters(q="anything", limit=10))
-    assert [row.external_id for row in page.items] == ["null"]
+    row = await pg_repo.get(1)
+    assert row is not None
+    assert row.search_text
+
+    nulls = await pg_session.execute(
+        text("SELECT count(*) FROM job_items WHERE search_text IS NULL")
+    )
+    assert nulls.scalar_one() == 0
+
+    # Search therefore cannot be defeated by a missing value.
+    page = await pg_repo.list_items(ItemFilters(q="python", limit=10))
+    assert [row.external_id for row in page.items] == ["1"]
 
 
 # --------------------------------------------------------- series & paging ---
