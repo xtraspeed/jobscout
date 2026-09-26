@@ -39,7 +39,9 @@ class Settings(BaseSettings):
     database_echo: bool = False
 
     # --- identity / politeness --------------------------------------------
-    user_agent: str = "JobScoutBot/0.1 (+https://github.com/your-handle/jobscout)"
+    # A contactable user agent is a precondition for crawling anything: site
+    # owners must be able to reach you. Override this in any real deployment.
+    user_agent: str = "JobScoutBot/0.1 (+https://github.com/xtraspeed/jobscout)"
     respect_robots: bool = True
     crawl_delay_fallback: float = Field(default=1.0, ge=0.0)
 
